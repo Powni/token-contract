@@ -1,9 +1,9 @@
 #[starknet::contract]
 mod ERC20HodlLimitContract {
     use openzeppelin::token::erc20::interface::IERC20Metadata;
-use openzeppelin::token::erc20::interface::IERC20;
-use openzeppelin::access::ownable::interface::IOwnable;
-use degen::degen::hodl_limit::HodlLimitComponent::InternalTrait as HodlLimitInternalTrait;
+    use openzeppelin::token::erc20::interface::IERC20;
+    use openzeppelin::access::ownable::interface::IOwnable;
+    use degen::degen::hodl_limit::HodlLimitComponent::InternalTrait as HodlLimitInternalTrait;
     use openzeppelin::access::ownable::ownable::OwnableComponent::InternalTrait as OwnableInternalTrait;
     use openzeppelin::token::erc20::ERC20Component;
     use openzeppelin::access::ownable::OwnableComponent;
