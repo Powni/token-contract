@@ -1,7 +1,9 @@
 #[starknet::contract]
 mod ERC20HodlLimitContract {
+    use core::debug::PrintTrait;
+use starknet::ContractAddress;
     use openzeppelin::token::erc20::interface::IERC20Metadata;
-    use openzeppelin::token::erc20::interface::IERC20;
+    use openzeppelin::token::erc20::interface::{ IERC20, IERC20CamelOnly };
     use openzeppelin::access::ownable::interface::IOwnable;
     use degen::degen::hodl_limit::HodlLimitComponent::InternalTrait as HodlLimitInternalTrait;
     use openzeppelin::access::ownable::ownable::OwnableComponent::InternalTrait as OwnableInternalTrait;
@@ -17,13 +19,11 @@ mod ERC20HodlLimitContract {
 
     // ERC20
 
-    #[abi(embed_v0)]
     impl ERC20Impl = ERC20Component::ERC20Impl<ContractState>;
     #[abi(embed_v0)]
     impl ERC20MetadataImpl = ERC20Component::ERC20MetadataImpl<ContractState>;
     #[abi(embed_v0)]
     impl SafeAllowanceImpl = ERC20Component::SafeAllowanceImpl<ContractState>;
-    #[abi(embed_v0)]
     impl ERC20CamelOnlyImpl = ERC20Component::ERC20CamelOnlyImpl<ContractState>;
     #[abi(embed_v0)]
     impl SafeAllowanceCamelImpl = ERC20Component::SafeAllowanceCamelImpl<ContractState>;
@@ -67,37 +67,39 @@ mod ERC20HodlLimitContract {
 
     /// Sets the token `name` and `symbol`.
     /// Mints `fixed_supply` tokens to `recipient`.
+    /// Gives contract ownership to `recipient`.
     #[constructor]
     fn constructor(
         ref self: ContractState,
         name: felt252,
         symbol: felt252,
         fixed_supply: u256,
-        recipient: starknet::ContractAddress
+        recipient: ContractAddress,
     ) {
         self.erc20.initializer(name, symbol);
         self.erc20._mint(recipient, fixed_supply);
+        self.ownable._transfer_ownership(recipient);
     }
 
     //
     // Hodl Limit
     //
 
-    #[abi(embed_v0)]
-    fn add_pool(ref self: ContractState, pool_address: starknet::ContractAddress) {
+    #[external(v0)]
+    fn add_pool(ref self: ContractState, pool_address: ContractAddress) {
         self.ownable.assert_only_owner();
 
         self.hodl_limit._add_pool(:pool_address);
     }
 
-    #[abi(embed_v0)]
+    #[external(v0)]
     fn enable_hodl_limit(ref self: ContractState) {
         self.ownable.assert_only_owner();
 
         self.hodl_limit._enable_hodl_limit();
     }
 
-    #[abi(embed_v0)]
+    #[external(v0)]
     fn disable_hodl_limit(ref self: ContractState) {
         self.ownable.assert_only_owner();
 
@@ -105,27 +107,60 @@ mod ERC20HodlLimitContract {
     }
 
     //
-    // ERC20
+    // IERC20
     //
 
-    #[abi(embed_v0)]
-    fn transfer_from(
-        ref self: ContractState,
-        sender: starknet::ContractAddress,
-        recipient: starknet::ContractAddress,
-        amount: u256
-    ) -> bool {
-        self._check_hodl_limit(:sender, :recipient, :amount);
+    #[external(v0)]
+    impl IERC20Impl of IERC20<ContractState> {
+        fn total_supply(self: @ContractState) -> u256 {
+            self.erc20.total_supply()
+        }
 
-        self.transfer_from(:sender, :recipient, :amount)
+        fn balance_of(self: @ContractState, account: ContractAddress) -> u256 {
+            self.erc20.balance_of(:account)
+        }
+
+        fn allowance(self: @ContractState, owner: ContractAddress, spender: ContractAddress) -> u256 {
+            self.erc20.allowance(:owner, :spender)
+        }
+
+        fn transfer(ref self: ContractState, recipient: ContractAddress, amount: u256) -> bool {
+            let sender = starknet::get_caller_address();
+            self._check_hodl_limit(:sender, :recipient, :amount);
+
+            self.erc20.transfer(:recipient, :amount)
+        }
+
+        fn transfer_from(
+            ref self: ContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+        ) -> bool {
+            self._check_hodl_limit(:sender, :recipient, :amount);
+
+            self.erc20.transfer_from(:sender, :recipient, :amount)
+        }
+
+        fn approve(ref self: ContractState, spender: ContractAddress, amount: u256) -> bool {
+            self.erc20.approve(:spender, :amount)
+        }
     }
 
-    #[abi(embed_v0)]
-    fn transfer(ref self: ContractState, recipient: starknet::ContractAddress, amount: u256) -> bool {
-        let sender = starknet::get_caller_address();
-        self._check_hodl_limit(:sender, :recipient, :amount);
+    #[external(v0)]
+    impl IERC20CamelOnlyImpl of IERC20CamelOnly<ContractState> {
+        fn totalSupply(self: @ContractState) -> u256 {
+            self.erc20.totalSupply()
+        }
 
-        self.transfer(:recipient, :amount)
+        fn balanceOf(self: @ContractState, account: ContractAddress) -> u256 {
+            self.erc20.balanceOf(:account)
+        }
+
+        fn transferFrom(
+            ref self: ContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+        ) -> bool {
+            self._check_hodl_limit(:sender, :recipient, :amount);
+
+            self.erc20.transferFrom(:sender, :recipient, :amount)
+        }
     }
 
     //
@@ -136,8 +171,8 @@ mod ERC20HodlLimitContract {
     impl InternalImpl of InternalTrait {
         fn _check_hodl_limit(
             ref self: ContractState,
-            sender: starknet::ContractAddress,
-            recipient: starknet::ContractAddress,
+            sender: ContractAddress,
+            recipient: ContractAddress,
             amount: u256
         ) {
             let sender_is_owner = self.ownable.owner() == sender;

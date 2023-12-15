@@ -1,5 +1,7 @@
 #[starknet::component]
 mod HodlLimitComponent {
+    use core::debug::PrintTrait;
+use starknet::ContractAddress;
     use openzeppelin::token::erc20::interface::IERC20;
     use openzeppelin::token::erc20::ERC20Component;
 
@@ -10,7 +12,7 @@ mod HodlLimitComponent {
     #[storage]
     struct Storage {
         _is_hodl_limit_enabled: bool,
-        _pool_addresses: LegacyMap<starknet::ContractAddress, bool>,
+        _pool_addresses: LegacyMap<ContractAddress, bool>,
     }
 
     mod Errors {
@@ -27,7 +29,7 @@ mod HodlLimitComponent {
         +HasComponent<TContractState>,
         +Drop<TContractState>,
     > of interface::IHodlLimit::<ComponentState<TContractState>> {
-        fn is_pool(self: @ComponentState<TContractState>, pool_address: starknet::ContractAddress) -> bool {
+        fn is_pool(self: @ComponentState<TContractState>, pool_address: ContractAddress) -> bool {
             self._pool_addresses.read(pool_address)
         }
 
@@ -49,7 +51,7 @@ mod HodlLimitComponent {
     > of InternalTrait<TContractState> {
         fn _check_hodl_limit(
             ref self: ComponentState<TContractState>,
-            recipient: starknet::ContractAddress,
+            recipient: ContractAddress,
             recipient_balance: u256
         ) {
             let is_hodl_limit_enabled = self._is_hodl_limit_enabled.read();
@@ -62,7 +64,7 @@ mod HodlLimitComponent {
             }
         }
 
-        fn _add_pool(ref self: ComponentState<TContractState>, pool_address: starknet::ContractAddress) {
+        fn _add_pool(ref self: ComponentState<TContractState>, pool_address: ContractAddress) {
             self._pool_addresses.write(pool_address, true);
         }
 
